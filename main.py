@@ -29,6 +29,8 @@ class Host:
         self.hostname = hostname
 
     def get_current_arecords(self):
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = [ nameserver ]
         response = dns.resolver.query(self.hostname, 'A')
         arecords = []
         for resp in response:
