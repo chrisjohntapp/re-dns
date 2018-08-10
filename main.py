@@ -14,6 +14,7 @@ import dns.tsigkeyring
 
 # TODO:
 # Exception handling;
+# Add comments;
 
 hostnames = [ 'foobar', 'barfoo' ]
 domain_name = 'mps.lan'
@@ -24,6 +25,8 @@ tsigkeyname = 'tappy-bind'
 tsigkey = '/lOHWPHv5B6QXKqsEcwWguuIOx+F8jqL1nK92DamiKAChAR60CgD3qI8N0iy2nr+hLIvBVdNcYIyav3JaQYdlg=='
 keyalgorithm = 'hmac-sha512'
 
+keyring = dns.tsigkeyring.from_text({ tsigkeyname : tsigkey })
+
 class Host:
     def __init__(self, hostname):
         self.hostname = hostname
@@ -33,8 +36,7 @@ class Host:
         resolver.nameservers = [ nameserver ]
         response = dns.resolver.query(self.hostname, 'A')
         arecords = []
-        for resp in response:
-            arecords.append(resp.address) 
+        [ arecords.append(resp.address) for resp in response ]
         return arecords
 
     def get_current_networks(self):
@@ -60,9 +62,6 @@ class Host:
         check_all_match(networks)
         check_category(networks, category)
 
-    def get_new_ip(self, ip_address, old_network, new_network):
-        pass
-
     def replace_records(self, new_ip, ttl=300):
         update = dns.update.Update(domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
         update.replace(self.hostname, ttl, 'A', new_ip)
@@ -74,19 +73,18 @@ class Host:
         dns.query.tcp(update, nameserver)
 
     def update_all_records(self):
+        def create_new_ip(ip_address, old_network, new_network):
+            return ip_address.replace(old_network, new_network)
+
         arecords = self.get_current_arecords()
-        new_primary_ip = get_new_ip(arecords.pop(0), production_network, dr_network) 
-        replace_records(new_primary_ip)
+        new_primary_ip = create_new_ip(arecords.pop(0), production_network, dr_network) 
+        self.replace_records(new_primary_ip)
         if arecords:
             for arec in arecords:
-                new_ip = get_new_ip(arec, production_network, dr_network)
-                add_record(new_ip)
+                new_ip = create_new_ip(arec, production_network, dr_network)
+                self.add_record(new_ip)
                 
-
-
-
-
-keyring = dns.tsigkeyring.from_text({ tsigkeyname : tsigkey })
+#========== MAIN ==========
 
 for hostname in hostnames:
     h = Host(hostname)
@@ -95,11 +93,11 @@ for hostname in hostnames:
 #    h.check_records() # If this fails, stop processing further hosts.
 
 
+
 # Update a record -------------------------------
 #update = dns.update.Update('laputa', keyring=keyring, keyalgorithm=keyalgorithm)
 #update.replace('foobar', 300, 'A', '10.10.10.10')
 #response = dns.query.tcp(update, nameserver)
-
 
 # Add a record ----------------------------------
 #update = dns.update.Update('laputa', keyring=keyring, keyalgorithm=keyalgorithm)
