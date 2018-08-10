@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
+import os
 import sys
-import dns.query
-import dns.update
-import dns.resolver
-import dns.tsigkeyring
+import logging
+import dns 
 
 # This script makes the following assumptions:
 # Hosts are not multi-homed;
@@ -26,12 +25,12 @@ nameserver = '172.16.62.51'
 tsigkeyname = 'tappy-bind'
 tsigkey = '/lOHWPHv5B6QXKqsEcwWguuIOx+F8jqL1nK92DamiKAChAR60CgD3qI8N0iy2nr+hLIvBVdNcYIyav3JaQYdlg=='
 keyalgorithm = 'hmac-sha512'
-
-keyring = dns.tsigkeyring.from_text({ tsigkeyname : tsigkey })
+loglevel = 'INFO'
 
 class Host:
     def __init__(self, hostname):
         self.hostname = hostname
+        logger.info("Created {}.".format(self.hostname))
 
     def get_current_arecords(self):
         resolver = dns.resolver.Resolver()
@@ -89,12 +88,42 @@ class Host:
             for arec in arecords:
                 new_ip = create_new_ip(arec, production_network, dr_network)
                 self.add_record(new_ip)
- 
-#========== MAIN ==========
 
-for hostname in hostnames:
-    h = Host(hostname)
-    h.validate_current_networks(production_network)
-    h.update_all_records()
-#    h.check_records() # If this fails, stop processing further hosts.
+def main(*args):
+    """Main function."""
+    # Set up logging.
+    numeric_level = getattr(logging, loglevel)
+    if not isinstance(numeric_level, int):
+        raise ValueError("Invalid log level: {}.".format(loglevel))
+    
+    script_name = os.path.basename(__file__)
+    global logger
+    logger = logging.getLogger(script_name)
+    logfile = "/tmp/{}.log".format(script_name)
+    if os.access("/var/log/{}.log".format(script_name), os.W_OK):
+        logfile = "/var/log/{}.log".format(script_name)
 
+    fh = logging.FileHandler(logfile)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    fh.setFormatter(formatter)
+
+    logger.addHandler(fh)
+    logger.setLevel(numeric_level)
+
+    logger.info("Logger set to %s.", loglevel)
+
+    # Run the thing.
+    global keyring
+    keyring = dns.tsigkeyring.from_text({ tsigkeyname : tsigkey })
+
+    for hostname in hostnames:
+        h = Host(hostname)
+        h.validate_current_networks(production_network)
+        h.update_all_records()
+        # h.check_records() # If this fails, stop processing further hosts.
+
+if __name__ == '__main__':
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    main(sys.argv[1:])
