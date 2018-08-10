@@ -78,13 +78,13 @@ for hostname in hostnames:
 
 
 # Update a record -------------------------------
-#update = dns.update.Update('laputa.', keyring=keyring, keyalgorithm=keyalgorithm)
+#update = dns.update.Update('laputa', keyring=keyring, keyalgorithm=keyalgorithm)
 #update.replace('foobar', 300, 'A', '10.10.10.10')
 #response = dns.query.tcp(update, nameserver)
 
 
 # Add a record ----------------------------------
-#update = dns.update.Update('laputa.', keyring=keyring, keyalgorithm=keyalgorithm)
+#update = dns.update.Update('laputa', keyring=keyring, keyalgorithm=keyalgorithm)
 #update.add('foobar', 300, 'A', '10.20.30.40')
 #
 #response = dns.query.tcp(update, nameserver, timeout=10)
