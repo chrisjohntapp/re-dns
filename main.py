@@ -13,13 +13,14 @@ import dns.tsigkeyring
 # Hosts only need A records updated;
 
 # TODO:
+# Logging;
 # Exception handling;
 # Add comments;
 # Use ipaddress module for networks/ips;
 
 hostnames = [ 'foobar', 'barfoo' ]
-domain_name = 'mps.lan'
-production_network = '10.15.0'
+domain_name = 'laputa'
+production_network = '172.16.62'
 dr_network = '10.95.0'
 nameserver = '172.16.62.51'
 tsigkeyname = 'tappy-bind'
@@ -35,7 +36,8 @@ class Host:
     def get_current_arecords(self):
         resolver = dns.resolver.Resolver()
         resolver.nameservers = [ nameserver ]
-        response = dns.resolver.query(self.hostname, 'A')
+        response = dns.resolver.query(
+            "{}.{}".format(self.hostname, domain_name), 'A')
         arecords = []
         [ arecords.append(resp.address) for resp in response ]
         return arecords
@@ -64,12 +66,14 @@ class Host:
         check_category(networks, category)
 
     def replace_records(self, new_ip, ttl=300):
-        update = dns.update.Update(domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
+        update = dns.update.Update(
+            domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
         update.replace(self.hostname, ttl, 'A', new_ip)
         dns.query.tcp(update, nameserver)
-    
+ 
     def add_record(self, new_ip, ttl=300):
-        update = dns.update.Update(domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
+        update = dns.update.Update(
+            domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
         update.add(self.hostname, ttl, 'A', new_ip)
         dns.query.tcp(update, nameserver)
 
@@ -78,13 +82,14 @@ class Host:
             return ip_address.replace(old_network, new_network)
 
         arecords = self.get_current_arecords()
-        new_primary_ip = create_new_ip(arecords.pop(0), production_network, dr_network) 
+        new_primary_ip = create_new_ip(
+            arecords.pop(0), production_network, dr_network) 
         self.replace_records(new_primary_ip)
         if arecords:
             for arec in arecords:
                 new_ip = create_new_ip(arec, production_network, dr_network)
                 self.add_record(new_ip)
-                
+ 
 #========== MAIN ==========
 
 for hostname in hostnames:
@@ -93,14 +98,3 @@ for hostname in hostnames:
     h.update_all_records()
 #    h.check_records() # If this fails, stop processing further hosts.
 
-
-
-# Update a record -------------------------------
-#update = dns.update.Update('laputa', keyring=keyring, keyalgorithm=keyalgorithm)
-#update.replace('foobar', 300, 'A', '10.10.10.10')
-#response = dns.query.tcp(update, nameserver)
-
-# Add a record ----------------------------------
-#update = dns.update.Update('laputa', keyring=keyring, keyalgorithm=keyalgorithm)
-#update.add('foobar', 300, 'A', '10.20.30.40')
-#response = dns.query.tcp(update, nameserver, timeout=10)
