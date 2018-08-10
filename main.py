@@ -60,12 +60,30 @@ class Host:
         check_all_match(networks)
         check_category(networks, category)
 
-    def update_records(self, ttl=300):
-        arecords = self.get_current_arecords()
+    def get_new_ip(self, ip_address, old_network, new_network):
+        pass
+
+    def replace_records(self, new_ip, ttl=300):
         update = dns.update.Update(domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
-        for arec in arecords:
-            update.replace(self.hostname, ttl, 'A', new_arec)
-        response = dns.query.tcp(update, nameserver)
+        update.replace(self.hostname, ttl, 'A', new_ip)
+        dns.query.tcp(update, nameserver)
+    
+    def add_record(self, new_ip, ttl=300):
+        update = dns.update.Update(domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
+        update.add(self.hostname, ttl, 'A', new_ip)
+        dns.query.tcp(update, nameserver)
+
+    def update_all_records(self):
+        arecords = self.get_current_arecords()
+        new_primary_ip = get_new_ip(arecords.pop(0), production_network, dr_network) 
+        replace_records(new_primary_ip)
+        if arecords:
+            for arec in arecords:
+                new_ip = get_new_ip(arec, production_network, dr_network)
+                add_record(new_ip)
+                
+
+
 
 
 keyring = dns.tsigkeyring.from_text({ tsigkeyname : tsigkey })
@@ -73,7 +91,7 @@ keyring = dns.tsigkeyring.from_text({ tsigkeyname : tsigkey })
 for hostname in hostnames:
     h = Host(hostname)
     h.validate_current_networks(production_network)
-    h.update_records()
+    h.update_all_records()
 #    h.check_records() # If this fails, stop processing further hosts.
 
 
@@ -86,5 +104,4 @@ for hostname in hostnames:
 # Add a record ----------------------------------
 #update = dns.update.Update('laputa', keyring=keyring, keyalgorithm=keyalgorithm)
 #update.add('foobar', 300, 'A', '10.20.30.40')
-#
 #response = dns.query.tcp(update, nameserver, timeout=10)
