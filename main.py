@@ -15,6 +15,7 @@ import dns.tsigkeyring
 # TODO:
 # Exception handling;
 # Add comments;
+# Use ipaddress module for networks/ips;
 
 hostnames = [ 'foobar', 'barfoo' ]
 domain_name = 'mps.lan'
