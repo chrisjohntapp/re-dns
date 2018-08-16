@@ -19,14 +19,14 @@ from dns import tsigkeyring, resolver, update, query
 
 hostnames = [ 'foobar', 'barfoo' ]
 domain_name = 'laputa'
-production_network = '10.15.5'
-dr_network = '10.95.0'
+production_network = '11.11.11'
+dr_network = '12.12.12'
 nameserver = '172.16.62.51'
 tsigkeyname = 'tappy-bind'
 tsigkey = '/lOHWPHv5B6QXKqsEcwWguuIOx+F8jqL1nK92DamiKAChAR60CgD3qI8N0iy2nr+hLIvBVdNcYIyav3JaQYdlg=='
 keyalgorithm = 'hmac-sha512'
-loglevel = 'INFO'
-validate_only = True
+loglevel = 'DEBUG'
+validate_only = False
 
 class Host:
     def __init__(self, hostname):
@@ -34,7 +34,7 @@ class Host:
         Create object representing a single host/hostname.
         """
         self.hostname = hostname
-        logger.info("Created object for hostname {}.".format(self.hostname))
+        logger.debug("Created object for hostname {}.".format(self.hostname))
 
     def get_current_arecords(self):
         """
@@ -50,9 +50,9 @@ class Host:
             logger.error("Failed to retrieve A records for {}.".format(self.hostname))
             logger.debug(e)
             raise
-        logger.debug("Query for A records associated with {} returned {}.".format(self.hostname, response))
         arecords = []
         [ arecords.append(resp.address) for resp in response ]
+        logger.debug("Query for A records associated with {} returned {}.".format(self.hostname, arecords))
         return arecords
 
     def get_current_networks(self, arecords='default'):
@@ -82,7 +82,7 @@ class Host:
         try:
             check_category(networks, category)
         except:
-            logger.error("Not all A records associated with {} are in the expected network.".format(self.hostname))
+            logger.error("Not all A records associated with {} are in the expected network {}.".format(self.hostname, production_network))
             raise SystemExit
         logger.debug("All A records associated with {} are in the expected network.".format(self.hostname))
 
@@ -120,10 +120,16 @@ class Host:
         """
         Updates all A records for host with versions in DR network.
         """
+        def create_new_ip(ip_address, old_network, new_network):
+            return ip_address.replace(old_network, new_network)
+
         arecords = self.get_current_arecords()
-        self.replace_records(arecords.pop(0).replace(production_network, dr_network))
+        new_primary_ip = create_new_ip(arecords.pop(0), production_network, dr_network)
+        self.replace_records(new_primary_ip)
         if arecords:
-            [ self.add_record(arec.replace(production_network, dr_network)) for arec in arecords ]
+            for arec in arecords:
+                new_ip = create_new_ip(arec, production_network, dr_network)
+                self.add_record(new_ip)
 
 def main(*args):
     """
