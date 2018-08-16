@@ -17,16 +17,16 @@ from dns import tsigkeyring, resolver, update, query
 # Add comments;
 # Use ipaddress module for networks/ips;
 
+validate_only = False
 hostnames = [ 'foobar', 'barfoo' ]
 domain_name = 'laputa'
-production_network = '11.11.11'
-dr_network = '12.12.12'
+production_network = '12.12.12'
+dr_network = '13.13.13'
 nameserver = '172.16.62.51'
 tsigkeyname = 'tappy-bind'
 tsigkey = '/lOHWPHv5B6QXKqsEcwWguuIOx+F8jqL1nK92DamiKAChAR60CgD3qI8N0iy2nr+hLIvBVdNcYIyav3JaQYdlg=='
 keyalgorithm = 'hmac-sha512'
 loglevel = 'DEBUG'
-validate_only = False
 
 class Host:
     def __init__(self, hostname):
