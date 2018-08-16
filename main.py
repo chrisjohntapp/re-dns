@@ -3,7 +3,7 @@
 import os
 import sys
 import logging
-import dns 
+from dns import tsigkeyring, resolver, update, query
 
 # This script makes the following assumptions:
 # Hosts are not multi-homed;
@@ -19,7 +19,7 @@ import dns
 
 hostnames = [ 'foobar', 'barfoo' ]
 domain_name = 'laputa'
-production_network = '172.16.62'
+production_network = '10.15.5'
 dr_network = '10.95.0'
 nameserver = '172.16.62.51'
 tsigkeyname = 'tappy-bind'
@@ -33,9 +33,9 @@ class Host:
         logger.info("Created {}.".format(self.hostname))
 
     def get_current_arecords(self):
-        resolver = dns.resolver.Resolver()
-        resolver.nameservers = [ nameserver ]
-        response = dns.resolver.query(
+        oresolver = resolver.Resolver()
+        oresolver.nameservers = [ nameserver ]
+        response = oresolver.query(
             "{}.{}".format(self.hostname, domain_name), 'A')
         arecords = []
         [ arecords.append(resp.address) for resp in response ]
@@ -61,16 +61,16 @@ class Host:
         check_category(networks, category)
 
     def replace_records(self, new_ip, ttl=300):
-        update = dns.update.Update(
+        oupdate = update.Update(
             domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
-        update.replace(self.hostname, ttl, 'A', new_ip)
-        dns.query.tcp(update, nameserver)
+        oupdate.replace(self.hostname, ttl, 'A', new_ip)
+        query.tcp(oupdate, nameserver)
  
     def add_record(self, new_ip, ttl=300):
-        update = dns.update.Update(
+        oupdate = update.Update(
             domain_name, keyring=keyring, keyalgorithm=keyalgorithm)
-        update.add(self.hostname, ttl, 'A', new_ip)
-        dns.query.tcp(update, nameserver)
+        oupdate.add(self.hostname, ttl, 'A', new_ip)
+        query.tcp(oupdate, nameserver)
 
     def update_all_records(self):
         def create_new_ip(ip_address, old_network, new_network):
@@ -112,7 +112,7 @@ def main(*args):
 
     # Run the thing.
     global keyring
-    keyring = dns.tsigkeyring.from_text({ tsigkeyname : tsigkey })
+    keyring = tsigkeyring.from_text({ tsigkeyname : tsigkey })
 
     for hostname in hostnames:
         h = Host(hostname)
