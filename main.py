@@ -43,13 +43,9 @@ class Host:
 
     def get_current_networks(self):
         arecords = self.get_current_arecords()
+        # Remove the last octet of address(es).
         networks = []
-        for arec in arecords:
-            # Remove the last octet of address. There's probably a better way.
-            tmp1 = arec.split('.')
-            tmp2 = tmp1.pop()
-            netw = '.'.join(tmp2)
-            networks.append(netw)
+        [ networks.append('.'.join(arec.split('.')[-4:-1])) for arec in arecords ]
         return networks
 
     def validate_current_networks(self, category):
