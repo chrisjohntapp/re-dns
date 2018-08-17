@@ -15,39 +15,47 @@
 #   be updated).
 
 from sys import argv
-from os import path, access, W_OK, chdir
+from os import path, access, W_OK, chdir, environ
 import logging
 from dns import tsigkeyring, resolver, update, query
+from json import loads
 
 
 #===============================================================================
 # Configurables.
+# Set here and/or override with environment variables.
 #===============================================================================
 
 # Auth nameserver for the zone.
-NAMESERVER = '172.16.62.51'
+NAMESERVER = environ.get('NAMESERVER', '172.16.62.51')
 
 # List of hostnames the script will operate on.
-HOSTNAMES = [
-    'foobar',
-    'barfoo'
-]
+if 'HOSTNAMES' in environ:
+    HOSTNAMES = loads(environ['HOSTNAMES'])
+else:
+    HOSTNAMES = [
+        'foobar',
+        'barfoo'
+    ]
+
 # All hosts must use the same domain name.
-DOMAIN_NAME = 'laputa'
+DOMAIN_NAME = environ.get('DOMAIN_NAME', 'laputa')
 
 # Specify primary network and network at the DR site.
-PRIMARY_NETWORK = '11.11.11'
-DR_NETWORK = '12.12.12'
+PRIMARY_NETWORK = environ.get('PRIMARY_NETWORK', '11.11.11')
+DR_NETWORK = environ.get('DR_NETWORK', '12.12.12')
 
 # Zone must be configured to allow-update using this key.
-TSIGKEYNAME = 'tappy-bind'
-TSIGKEY = '/lOHWPHv5B6QXKqsEcwWguuIOx+F8jqL1nK92DamiKAChAR60CgD3qI8N0iy2nr+hLIvBVdNcYIyav3JaQYdlg=='
-KEYALGORITHM = 'hmac-sha512'
+TSIGKEYNAME = environ.get('TSIGKEYNAME', 'tappy-bind')
+TSIGKEY = environ.get(
+    'TSIGKEY', '/lOHWPHv5B6QXKqsEcwWguuIOx+F8jqL1nK92DamiKAChAR60CgD3qI8N0iy2nr+hLIvBVdNcYIyav3JaQYdlg==')
+KEYALGORITHM = environ.get('KEYALGORITHM', 'hmac-sha512')
 
 # Misc.
-ACTION = 'Failover' # Switch to 'Failback' to reset A records to primary site.
-LOGLEVEL = 'DEBUG'
-VALIDATE_ONLY = False
+ACTION = environ.get('ACTION', 'Failover') # Or 'Failback'.
+LOGLEVEL = environ.get('LOGLEVEL', 'DEBUG')
+VALIDATE = environ.get('VALIDATE', False)
+VALIDATE_TARGET = environ.get('VALIDATE_TARGET', 'Primary') # Or 'DR'.
 
 
 #===============================================================================
@@ -259,8 +267,15 @@ def main(*args):
     # Run the thing.
     for hostname in HOSTNAMES:
         h = Host(hostname)
-        if VALIDATE_ONLY:
-            h.validate_current_networks(PRIMARY_NETWORK)
+        if VALIDATE:
+            if VALIDATE_TARGET == 'Primary':
+                target = PRIMARY_NETWORK
+            elif VALIDATE_TARGET == 'DR':
+                target = DR_NETWORK
+            else:
+                logger.error("VALIDATE_TARGET not recognised.")
+                raise SystemExit
+            h.validate_current_networks(target)
         else:
             h.update_all_records()
 
