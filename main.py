@@ -26,6 +26,9 @@ from json import loads
 # Set here and/or override with environment variables.
 #===============================================================================
 
+# Failover (to DR site) or Failback?
+ACTION = environ.get('ACTION', 'Failover')
+
 # Auth nameserver for the zone.
 NAMESERVER = environ.get('NAMESERVER', '172.16.62.51')
 
@@ -42,8 +45,8 @@ else:
 DOMAIN_NAME = environ.get('DOMAIN_NAME', 'laputa')
 
 # Specify primary network and network at the DR site.
-PRIMARY_NETWORK = environ.get('PRIMARY_NETWORK', '11.11.11')
-DR_NETWORK = environ.get('DR_NETWORK', '12.12.12')
+PRIMARY_NETWORK = environ.get('PRIMARY_NETWORK', '10.16.14')
+DR_NETWORK = environ.get('DR_NETWORK', '192.168.12')
 
 # Zone must be configured to allow-update using this key.
 TSIGKEYNAME = environ.get('TSIGKEYNAME', 'tappy-bind')
@@ -52,9 +55,8 @@ TSIGKEY = environ.get(
 KEYALGORITHM = environ.get('KEYALGORITHM', 'hmac-sha512')
 
 # Misc.
-ACTION = environ.get('ACTION', 'Failover') # Or 'Failback'.
 LOGLEVEL = environ.get('LOGLEVEL', 'DEBUG')
-VALIDATE = environ.get('VALIDATE', False)
+VALIDATE = environ.get('VALIDATE', False) # For testing only.
 VALIDATE_TARGET = environ.get('VALIDATE_TARGET', 'Primary') # Or 'DR'.
 
 
