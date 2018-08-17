@@ -45,6 +45,7 @@ TSIGKEY = '/lOHWPHv5B6QXKqsEcwWguuIOx+F8jqL1nK92DamiKAChAR60CgD3qI8N0iy2nr+hLIvB
 KEYALGORITHM = 'hmac-sha512'
 
 # Misc.
+ACTION = 'Failover' # Switch to 'Failback' to reset A records to primary site.
 LOGLEVEL = 'DEBUG'
 VALIDATE_ONLY = False
 
@@ -188,7 +189,6 @@ class Host:
     def update_all_records(self):
         """
         Updates all A records for current instance with DR network versions.
-        TODO: make it configurable what gets switched for what.
         """
         def create_new_ip(ip_address, old_network, new_network):
             """
@@ -199,15 +199,26 @@ class Host:
 
         a_records = self.get_current_a_records()
 
+        # Set Failover or Failback.
+        if ACTION == 'Failover':
+            net_a = PRIMARY_NETWORK
+            net_b = DR_NETWORK
+        elif ACTION == 'Failback':
+            net_a = DR_NETWORK
+            net_b = PRIMARY_NETWORK
+        else:
+            logger.error("Unrecognised ACTION.")
+            raise SystemExit
+
         # Replace all current records with a single new record.
         new_primary_ip = create_new_ip(
-            a_records.pop(0), PRIMARY_NETWORK, DR_NETWORK)
+            a_records.pop(0), net_a, net_b)
         self.replace_records(new_primary_ip)
 
         # If the instance has additional IP addresses, add records for these.
         if a_records:
             for rec in a_records:
-                new_ip = create_new_ip(rec, PRIMARY_NETWORK, DR_NETWORK)
+                new_ip = create_new_ip(rec, net_a, net_b)
                 self.add_record(new_ip)
 
 
