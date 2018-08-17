@@ -3,22 +3,26 @@
 # This script should be run as part of the disaster recovery process. Point it
 # to an authoritative nameserver which is configured to accept dynamic updates
 # from the configured tsig key, and it will replace all A records in the
-# PRIMARY_NETWORK with A records in the DR_NETWORK. The last octet remains
-# the same.
+# PRIMARY_NETWORK with A records in the DR_NETWORK, for the hosts listed in
+# HOSTNAMES. The last octet of the IP address remains the same.
+# Hosts may have multiple A records; the script will update all of them.
 
 # The script makes the following assumptions:
-# All networks are class C.
-# All hostnames exist under same domain name.
-# Hosts only need A records updated.
-# Hosts are not multi-homed:
-#   If they are, only the IPs on PRIMARY_NETWORK will be updated.
-
-# Hosts may have multiple A records; the script will update all of them.
+# * All networks are class C.
+# * All hostnames exist under same domain name.
+# * Hosts only need A records updated.
+# * Hosts are not multi-homed (If they are, only the IPs on PRIMARY_NETWORK will
+#   be updated).
 
 from sys import argv
 from os import path, access, W_OK, chdir
 import logging
 from dns import tsigkeyring, resolver, update, query
+
+
+#===============================================================================
+# Configurables.
+#===============================================================================
 
 # Auth nameserver for the zone.
 NAMESERVER = '172.16.62.51'
@@ -44,58 +48,68 @@ KEYALGORITHM = 'hmac-sha512'
 LOGLEVEL = 'DEBUG'
 VALIDATE_ONLY = False
 
+
+#===============================================================================
+# Classes.
+#===============================================================================
+
 class Host:
     def __init__(self, hostname):
         """
-        Create object representing a single host.
+        Create instance representing a single host.
         """
         self.hostname = hostname
-        logger.debug("Created object for hostname {}.".format(self.hostname))
+        logger.info(
+            "Created host instance for hostname {}.".format(self.hostname)
+        )
 
-    def get_current_arecords(self):
+    def get_current_a_records(self):
         """
-        Returns list of A records associated with current host.
+        Queries configured nameserver for A records associated with current host
+        instance. Returns a list of IP addresses.
         """
-        oresolver = resolver.Resolver()
-        oresolver.nameservers = [ NAMESERVER ]
-        logger.debug(
+        o_resolver = resolver.Resolver()
+        o_resolver.nameservers = [ NAMESERVER ]
+        logger.info(
             "Nameserver for {} set to {}.".format(self.hostname, NAMESERVER)
         )
+
         try:
-            response = oresolver.query(
+            response = o_resolver.query(
                 "{}.{}".format(self.hostname, DOMAIN_NAME), 'A')
+            logger.debug(response)
         except Exception as e:
             logger.error(
                 "Failed to retrieve A records for {}.".format(self.hostname)
             )
             logger.debug(e)
             raise
-        arecords = []
-        [ arecords.append(resp.address) for resp in response ]
-        logger.debug(
+
+        a_records = []
+        [ a_records.append(resp.address) for resp in response ]
+        logger.info(
             "Query for A records associated with {} returned {}.".format(
-                self.hostname, arecords
+                self.hostname, a_records
             )
         )
-        return arecords
+        return a_records
 
-    def get_current_networks(self, arecords='default'):
+    def get_current_networks(self, a_records='default'):
         """
-        Returns a list of the 3-octet class C networks of the current host's A
-        records. Takes a list of A records or, if not provided, determines the
-        list itself.
+        Returns a list of the 3-octet class C networks of a list of A records.
+        Takes a list of A records or, if not provided, uses the current host
+        object's A records.
         """
-        if arecords == 'default':
-            arecords = self.get_current_arecords()
-        networks = []
+        if a_records == 'default':
+            a_records = self.get_current_a_records()
+
         # Remove the last octet of address(es).
+        networks = []
         [ networks.append(
-            '.'.join(arec.split('.')[-4:-1])
-        ) for arec in arecords ]
-        logger.debug(
-            "get_current_networks derived {} from {}.".format(
-                networks, arecords
-            )
+            '.'.join(rec.split('.')[-4:-1])
+        ) for rec in a_records ]
+        logger.info(
+            "Derived networks {} from addresses {}.".format(networks, a_records)
         )
         return networks
 
@@ -108,6 +122,9 @@ class Host:
         misconfigured host would cause DR to fail.
         """
         def check_category(networks, category):
+            """
+            Return True if all networks match category, or False otherwise.
+            """
             all(x == category for x in networks)
 
         networks = self.get_current_networks()
@@ -119,19 +136,21 @@ class Host:
                 network {}.".format(self.hostname, PRIMARY_NETWORK)
             )
             raise SystemExit
-        logger.debug(
+        logger.info(
             "All A records associated with {} are in the expected \
             network.".format(self.hostname))
 
     def replace_records(self, new_ip, ttl=300):
         """
-        Replace all existing A records with a single new one.
+        Replaces all existing A records for the current instance with a single
+        new one.
         """
-        oupdate = update.Update(
+        o_update = update.Update(
             DOMAIN_NAME, keyring=KEYRING, keyalgorithm=KEYALGORITHM)
-        oupdate.replace(self.hostname, ttl, 'A', new_ip)
+        o_update.replace(self.hostname, ttl, 'A', new_ip)
+
         try:
-            query.tcp(oupdate, NAMESERVER)
+            query.tcp(o_update, NAMESERVER)
         except Exception as e:
             logger.error(
                 "Attempt to replace A records for {} failed.".format(
@@ -148,13 +167,14 @@ class Host:
  
     def add_record(self, new_ip, ttl=300):
         """
-        Add A records to an existing one.
+        Adds an A record for the current instance.
         """
-        oupdate = update.Update(
+        o_update = update.Update(
             DOMAIN_NAME, keyring=KEYRING, keyalgorithm=KEYALGORITHM)
-        oupdate.add(self.hostname, ttl, 'A', new_ip)
+        o_update.add(self.hostname, ttl, 'A', new_ip)
+
         try:
-            query.tcp(oupdate, NAMESERVER)
+            query.tcp(o_update, NAMESERVER)
         except Exception as e:
             logger.error(
                 "Attempt to add A record {} to {} failed.".format(
@@ -167,19 +187,33 @@ class Host:
 
     def update_all_records(self):
         """
-        Updates all A records for host with versions in DR network.
+        Updates all A records for current instance with DR network versions.
+        TODO: make it configurable what gets switched for what.
         """
         def create_new_ip(ip_address, old_network, new_network):
+            """
+            Changes the network portion (class C only) of an IP address from
+            old_network to new_network, and returns the result.
+            """
             return ip_address.replace(old_network, new_network)
 
-        arecords = self.get_current_arecords()
+        a_records = self.get_current_a_records()
+
+        # Replace all current records with a single new record.
         new_primary_ip = create_new_ip(
-            arecords.pop(0), PRIMARY_NETWORK, DR_NETWORK)
+            a_records.pop(0), PRIMARY_NETWORK, DR_NETWORK)
         self.replace_records(new_primary_ip)
-        if arecords:
-            for arec in arecords:
-                new_ip = create_new_ip(arec, PRIMARY_NETWORK, DR_NETWORK)
+
+        # If the instance has additional IP addresses, add records for these.
+        if a_records:
+            for rec in a_records:
+                new_ip = create_new_ip(rec, PRIMARY_NETWORK, DR_NETWORK)
                 self.add_record(new_ip)
+
+
+#===============================================================================
+# Module Functions.
+#===============================================================================
 
 def main(*args):
     """
@@ -207,16 +241,22 @@ def main(*args):
     logger.setLevel(numeric_level)
     logger.info("Logger set to {}.".format(LOGLEVEL))
 
-    # Run the thing.
+    # Set constants.
     global KEYRING
     KEYRING = tsigkeyring.from_text({ TSIGKEYNAME : TSIGKEY })
 
+    # Run the thing.
     for hostname in HOSTNAMES:
         h = Host(hostname)
         if VALIDATE_ONLY:
             h.validate_current_networks(PRIMARY_NETWORK)
         else:
             h.update_all_records()
+
+
+#===============================================================================
+# Run.
+#===============================================================================
 
 if __name__ == '__main__':
     chdir(path.dirname(path.abspath(__file__)))
